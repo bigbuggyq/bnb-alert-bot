@@ -60,3 +60,7 @@ def watch_pending_transactions():
 
 if __name__ == "__main__":
     watch_pending_transactions()
+except Exception as e:
+    print("Error:", e)
+    print("Reconnecting in 30 seconds...")
+    time.sleep(30)
