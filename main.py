@@ -21,6 +21,6 @@ def send_telegram_message(msg):
 
 def get_latest_block_number():
     r = requests.post(BSC_RPC, json={
-        "jsonrpc": "2.0", "method": "eth_blockNumber", "params": [], "id": 1_
+        "jsonrpc": "2.0", "method": "eth_blockNumber", "params": [], "id": 1
     print("Reconnecting in 30 seconds...")
     time.sleep(30)
