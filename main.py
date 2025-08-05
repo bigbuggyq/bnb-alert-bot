@@ -15,6 +15,7 @@ WATCHED_WALLETS = [
 BSC_RPC = "https://bsc-dataseed.binance.org"  # Public HTTP endpoint
 last_checked_block = None
 
+
 def send_telegram_message(msg):
     """Send a Telegram message."""
     try:
@@ -24,6 +25,7 @@ def send_telegram_message(msg):
         print("Sent Telegram alert:", msg)
     except Exception as e:
         print("Failed to send Telegram message:", e)
+
 
 def get_latest_block_number():
     """Get the latest block number from BSC."""
@@ -38,6 +40,7 @@ def get_latest_block_number():
         timeout=10
     )
     return int(r.json()["result"], 16)
+
 
 def get_block_transactions(block_number):
     """Get all transactions from a block."""
@@ -54,14 +57,48 @@ def get_block_transactions(block_number):
     )
     return r.json()["result"]["transactions"]
 
+
 def watch_incoming():
     """Poll BSC for incoming BNB transactions to any watched wallet."""
     global last_checked_block
 
     print(f"Starting FAST HTTP polling for wallets: {', '.join(WATCHED_WALLETS)}")
+
     while True:
         try:
             latest_block = get_latest_block_number()
+
+            # First run: initialize without checking old blocks
+            if last_checked_block is None:
+                last_checked_block = latest_block
+                print(f"Starting from block {latest_block}")
+                continue
+
+            # If new block found, check it for our wallets
+            if latest_block > last_checked_block:
+                for block_num in range(last_checked_block + 1, latest_block + 1):
+                    print(f"Checking block {block_num}...")
+                    txs = get_block_transactions(block_num)
+                    for tx in txs:
+                        if tx.get("to"):
+                            to_addr = tx["to"].lower()
+                            if to_addr in WATCHED_WALLETS:
+                                value = int(tx["value"], 16) / (10**18)
+                                if value > 0:
+                                    wallet_index = WATCHED_WALLETS.index(to_addr) + 1
+                                    send_telegram_message(
+                                        f"🚨 Incoming BNB to Wallet {wallet_index} ({to_addr}): {value} BNB\nTx: https://bscscan.com/tx/{tx['hash']}"
+                                    )
+                last_checked_block = latest_block
+
+            time.sleep(0.5)  # Poll every 0.5 seconds
+
+        except Exception as e:
+            print("Error:", e)
+            time.sleep(5)
+
+
+if __name__ == "__main__":
 
             # First run: initialize without checking old blocks
             if last_checked_block is None:
