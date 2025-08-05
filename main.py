@@ -8,13 +8,12 @@ CHAT_ID = "7839151688"
 # Add up to 3 wallets here (lowercase for matching)
 WATCHED_WALLETS = [
     "0x700aeB8D72Cf31B438cA93a80B7A383364Fe8182".lower(),
-    "0xDEF4aDa9F4eD535E35571D59e7BE61fca19fa90E".lower(),
-    "0x3BB2E7D2FdAEff12ECbBcafd6DA97b1C9B3f5C00".lower()
+    "0x3BB2E7D2FdAEff12ECbBcafd6DA97b1C9B3f5C00".lower(),
+    "0xDEF4aDa9F4eD535E35571D59e7BE61fca19fa90E".lower()
 ]
 
 BSC_RPC = "https://bsc-dataseed.binance.org"  # Public HTTP endpoint
 last_checked_block = None
-seen_pending_txs = set()
 
 def send_telegram_message(msg):
     """Send a Telegram message."""
@@ -30,7 +29,12 @@ def get_latest_block_number():
     """Get the latest block number from BSC."""
     r = requests.post(
         BSC_RPC,
-        json={"jsonrpc": "2.0", "method": "eth_blockNumber", "params": [], "id": 1},
+        json={
+            "jsonrpc": "2.0",
+            "method": "eth_blockNumber",
+            "params": [],
+            "id": 1
+        },
         timeout=10
     )
     return int(r.json()["result"], 16)
@@ -50,18 +54,46 @@ def get_block_transactions(block_number):
     )
     return r.json()["result"]["transactions"]
 
-def get_pending_transactions():
-    """Get all pending transactions from BSC."""
-    try:
-        r = requests.post(
-            BSC_RPC,
-            json={"jsonrpc": "2.0", "method": "eth_pendingTransactions", "params": [], "id": 1},
-            timeout=10
-        )
-        result = r.json().get("result", [])
-        if isinstance(result, list):
-            return result
-        return []
+def watch_incoming():
+    """Poll BSC for incoming BNB transactions to any watched wallet."""
+    global last_checked_block
+
+    print(f"Starting FAST HTTP polling for wallets: {', '.join(WATCHED_WALLETS)}")
+    while True:
+        try:
+            latest_block = get_latest_block_number()
+
+            # First run: initialize without checking old blocks
+            if last_checked_block is None:
+                last_checked_block = latest_block
+                print(f"Starting from block {latest_block}")
+                continue
+
+            # If new block found, check it for our wallets
+            if latest_block > last_checked_block:
+                for block_num in range(last_checked_block + 1, latest_block + 1):
+                    print(f"Checking block {block_num}...")
+                    txs = get_block_transactions(block_num)
+                    for tx in txs:
+                        if tx.get("to"):
+                            to_addr = tx["to"].lower()
+                            if to_addr in WATCHED_WALLETS:
+                                value = int(tx["value"], 16) / (10**18)
+                                if value > 0:
+                                    wallet_index = WATCHED_WALLETS.index(to_addr) + 1
+                                    send_telegram_message(
+                                        f"🚨 Incoming BNB to Wallet {wallet_index} ({to_addr}): {value} BNB\nTx: https://bscscan.com/tx/{tx['hash']}"
+                                    )
+                last_checked_block = latest_block
+
+            time.sleep(0.5)  # Poll every 0.5 seconds
+
+        except Exception as e:
+            print("Error:", e)
+            time.sleep(5)
+
+if __name__ == "__main__":
+    watch_incoming()
     except Exception as e:
         print("Pending tx fetch error:", e)
         return []
