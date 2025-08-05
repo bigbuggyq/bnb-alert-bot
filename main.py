@@ -100,6 +100,44 @@ def watch_incoming():
 
 if __name__ == "__main__":
     watch_incoming()
+    print(f"Starting FAST HTTP polling for wallets: {', '.join(WATCHED_WALLETS)}")
+
+    while True:
+        try:
+            latest_block = get_latest_block_number()
+
+            # First run: initialize without checking old blocks
+            if last_checked_block is None:
+                last_checked_block = latest_block
+                print(f"Starting from block {latest_block}")
+                continue
+
+            # If new block found, check it for our wallets
+            if latest_block > last_checked_block:
+                for block_num in range(last_checked_block + 1, latest_block + 1):
+                    print(f"Checking block {block_num}...")
+                    txs = get_block_transactions(block_num)
+                    for tx in txs:
+                        if tx.get("to"):
+                            to_addr = tx["to"].lower()
+                            if to_addr in WATCHED_WALLETS:
+                                value = int(tx["value"], 16) / (10**18)
+                                if value > 0:
+                                    wallet_index = WATCHED_WALLETS.index(to_addr) + 1
+                                    send_telegram_message(
+                                        f"🚨 Incoming BNB to Wallet {wallet_index} ({to_addr}): {value} BNB\nTx: https://bscscan.com/tx/{tx['hash']}"
+                                    )
+                last_checked_block = latest_block
+
+            time.sleep(0.5)  # Poll every 0.5 seconds
+
+        except Exception as e:
+            print("Error:", e)
+            time.sleep(5)
+
+
+if __name__ == "__main__":
+    watch_incoming()
             "params": [hex_block, True],
             "id": 1
         },
