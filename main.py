@@ -20,7 +20,7 @@ def send_telegram_message(msg):
 def watch_pending_transactions():
     while True:
         try:
-            ws = create_connection("wss://bsc-ws-node.nariox.org:443")
+            ws = create_connection("wss://frequent-attentive-sea.bsc.quiknode.pro/1cf83bac24bb75abc777d847251f4f75f585bb32/")
             print("Connected to BSC WebSocket...")
 
             sub = {
